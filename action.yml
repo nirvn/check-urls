@@ -1,5 +1,5 @@
-name: 'Check QField URLs'
-description: 'Scans the src/ directory for QField URLs and checks for 404 status codes.'
+name: 'Check URLs'
+description: 'Scans directories for URLs and checks for 404 status codes.'
 
 inputs:
   search_path:
@@ -34,8 +34,8 @@ runs:
         echo "Scanning URLs used in ${SEARCH_PATH}"
 
         # Ensure the directory exists before attempting to grep
-        if [ ! -d "src" ]; then
-          echo "❌ Directory 'src' does not exist in the working directory."
+        if [ ! -d "${SEARCH_PATH}" ]; then
+          echo "❌ Directory '${SEARCH_PATH}' does not exist in the working directory."
           exit 1
         fi
 
