@@ -1,0 +1,86 @@
+name: 'Check QField URLs'
+description: 'Scans the src/ directory for QField URLs and checks for 404 status codes.'
+
+inputs:
+  search_path:
+    description: 'A path where URLs will be checked for recursively'
+    required: true
+    default: ""
+  grep_extra_options:
+    description: 'A string representing extra options passed onto grep (e.g. --exclude "*.po")'
+    required: true
+    default: ""
+  skip_urls:
+    description: 'A newline-separated list of URLs to skip'
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run URL Check
+      shell: bash
+      env:
+        # Pass the input as an environment variable to safely handle newlines in bash
+        SEARCH_PATH: ${{ inputs.search_path }}
+        GREP_EXTRA_OPTIONS: ${{ inputs.grep_extra_options }}
+        SKIP_URLS: ${{ inputs.skip_urls }}
+      run: |
+        echo "Scanning URLs used in ${SEARCH_PATH}"
+
+        # Ensure the directory exists before attempting to grep
+        if [ ! -d "src" ]; then
+          echo "❌ Directory 'src' does not exist in the working directory."
+          exit 1
+        fi
+
+        urls=$(grep ${GREP_EXTRA_OPTIONS} -rEho "https://[A-Za-z\.]+qfield.(cloud|org)[^ <>\\\"')]+" ${SEARCH_PATH} | sort -u)
+
+        if [ -z "$urls" ]; then
+          echo "No URLs found."
+          exit 0
+        fi
+
+        echo "------------------------"
+
+        has_404=0
+
+        mapfile -t skip_urls_array < <(echo "$SKIP_URLS" | grep -v '^\s*$')
+
+        for url in $urls; do
+          should_skip=0
+          for skip_url in "${skip_urls_array[@]}"; do
+            skip_url=$(echo "$skip_url" | xargs)
+            if [ "$url" = "$skip_url" ]; then
+              should_skip=1
+              break
+            fi
+          done
+
+          if [ "$should_skip" -eq 1 ]; then
+            echo "[---] ⏭️ SKIPPED   : $url"
+            continue
+          fi
+
+          status_code=$(curl -s -L -m 10 -o /dev/null -w "%{http_code}" "$url")
+          if [ "$status_code" = "404" ]; then
+            echo "[404] ❌ NOT FOUND : $url"
+            has_404=1
+          elif [ "$status_code" = "200" ]; then
+            echo "[200] ✅ OK        : $url"
+          elif [ "$status_code" = "000" ]; then
+            echo "[000] ⚠️ TIMEOUT   : $url (Failed to connect)"
+          else
+            echo "[$status_code] ℹ️ OTHER     : $url"
+          fi
+        done
+
+        echo "------------------------"
+
+        if [ "$has_404" -eq 0 ]; then
+          echo "✅ Check completed successfully: No 404 errors found."
+          exit 0
+        fi
+
+        echo "❌ Check completed with failures: One or more 404 errors were detected."
+        exit 1
