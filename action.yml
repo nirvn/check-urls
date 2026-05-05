@@ -5,15 +5,19 @@ inputs:
   search_path:
     description: 'A path where URLs will be checked for recursively'
     required: true
-    default: ""
+    default: 
+  search_regexp:
+    description: 'The regular expression used to identify URLs'
+    required: true
+    default: https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)
   grep_extra_options:
     description: 'A string representing extra options passed onto grep (e.g. --exclude "*.po")'
     required: true
-    default: ""
+    default: 
   skip_urls:
     description: 'A newline-separated list of URLs to skip'
     required: false
-    default: ""
+    default: 
 
 runs:
   using: "composite"
@@ -23,6 +27,7 @@ runs:
       env:
         # Pass the input as an environment variable to safely handle newlines in bash
         SEARCH_PATH: ${{ inputs.search_path }}
+        SEARCH_REGEXP: ${{ inputs.search_regexp }}
         GREP_EXTRA_OPTIONS: ${{ inputs.grep_extra_options }}
         SKIP_URLS: ${{ inputs.skip_urls }}
       run: |
@@ -34,7 +39,7 @@ runs:
           exit 1
         fi
 
-        urls=$(grep ${GREP_EXTRA_OPTIONS} -rEho "https://[A-Za-z\.]+qfield.(cloud|org)[^ <>\\\"')]+" ${SEARCH_PATH} | sort -u)
+        urls=$(grep ${GREP_EXTRA_OPTIONS} -rEho "${SEARCH_REGEXP}" ${SEARCH_PATH} | sort -u)
 
         if [ -z "$urls" ]; then
           echo "No URLs found."
